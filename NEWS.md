@@ -1,3 +1,8 @@
+# streamDepletr 0.1.1
+ - Add package sp to Depends to pass new CRAN warning.
+ - Updating links to new development repository location.
+ - Minor tweaks to vignette.
+
 # streamDepletr 0.1.0
 
-Initial submission of package to CRAN.
+Initial release of package to CRAN, 2019-04-25

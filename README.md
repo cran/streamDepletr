@@ -3,10 +3,6 @@
 
 # streamDepletr
 
-[![lifecycle](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://www.tidyverse.org/lifecycle/#maturing)
-[![Travis-CI Build
-Status](https://travis-ci.org/samzipper/streamDepletr.svg?branch=master)](https://travis-ci.org/samzipper/streamDepletr)
-
 streamDepletr is an R package with functions for assessing the impacts
 of groundwater pumping on streams. There are two primary categories of
 functions:
@@ -29,13 +25,13 @@ reaches within a stream network.
 
 ## Installation
 
-You can install streamDepletr from GitHub
-with:
+You can install streamDepletr from CRAN:
+`install.packages("streamDepletr")`
+
+Alternately, you can use `devtools` to install the development version:
 
 ``` r
-# install.packages("devtools")  # uncomment if you don't already have devtools
-devtools::install_github("samzipper/streamDepletr",
-                         build_vignettes=T)
+devtools::install_github("FoundrySpatial/streamDepletr", build_vignettes=T)
 ```
 
 ## Example

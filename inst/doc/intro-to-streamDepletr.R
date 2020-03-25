@@ -1,4 +1,4 @@
-## ----setup, include = FALSE----------------------------------------------
+## ----setup, include = FALSE---------------------------------------------------
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
@@ -6,12 +6,11 @@ knitr::opts_chunk$set(
 require(magrittr)
 require(reshape2)
 require(ggplot2)
-require(sf)
 require(dplyr)
 require(scales)
 require(streamDepletr)
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 times  <- seq(1,100) # time [days]
 K <- 1e-5*86400      # hydraulic conductivity [m/d]
 b <- 50              # aquifer thickness [m]
@@ -19,12 +18,12 @@ trans <- b*K         # transmissivity [m2/d]
 d <- 250             # well to stream distance [m]
 Sy <- 0.1            # specific yield [-]
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 str_cond <- streambed_conductance(w = 5,        # river width [m]
                                   Kriv = 0.1*K, # streambed K is 10% that of the aquifer
                                   briv = 1)     # thickness of streambed
 
-## ----fig.width = 6, fig.height = 4---------------------------------------
+## ----fig.width = 6, fig.height = 4--------------------------------------------
 df_depletion <-
   data.frame(times = times,
              Qf_glover = glover(t = times, d = d, S = Sy, Tr = trans),
@@ -36,10 +35,10 @@ df_depletion %>%
     geom_line() +
     scale_y_continuous(limits = c(0,1))
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 df_depletion[dim(df_depletion)[1], ]  # glover is ~2x hunt
 
-## ----fig.width = 6, fig.height = 4---------------------------------------
+## ----fig.width = 6, fig.height = 4--------------------------------------------
 Qw <- 500      # pumping rate, [m3/d]
 df_depletion$Qs_glover <- df_depletion$Qf_glover*Qw # streamflow depletion, [m3/d]
 df_depletion$Qs_hunt   <- df_depletion$Qf_hunt*Qw   # streamflow depletion, [m3/d]
@@ -51,7 +50,7 @@ df_depletion %>%
   ggplot2::ggplot(aes(x = times, y = Qs, color = model)) +
     geom_line()
 
-## ----fig.width = 6, fig.height = 4---------------------------------------
+## ----fig.width = 6, fig.height = 4--------------------------------------------
 # define pumping schedule
 t_starts <- c(10, 200, 400)  # days that well turns on
 t_stops <- c(60, 350, 700)   # days that well turns off
@@ -76,7 +75,7 @@ ggplot2::ggplot(df_intermittent,
            ymin = -Inf, ymax = Inf, fill = "red", alpha = 0.5) +
   geom_line()
 
-## ----fig.width = 6, fig.height = 4---------------------------------------
+## ----fig.width = 6, fig.height = 4--------------------------------------------
 pump_rates <- c(100, 1000, 100) # [m3/d] - must be same length as t_starts and t_stops
 df_intermittent$Qs_variableRate <- 
   intermittent_pumping(t = seq(1,730), starts = t_starts, stops = t_stops, 
@@ -95,7 +94,7 @@ df_intermittent %>%
            ymin = -Inf, ymax = Inf, fill = "red", alpha = 0.5) +
   geom_line()
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 # well properties
 Qw <- 1000  # well pumping rate [m3/d]
 wel_lon <- 295500  # easting of well [m]
@@ -109,12 +108,12 @@ b <- 250             # aquifer thickness [m]
 trans <- b*K         # transmissivity [m2/d]
 Sy <- 0.05           # specific yield [-]
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 rdll <- prep_reach_dist(wel_lon = wel_lon, wel_lat = wel_lat, 
                         stream_shp = stream_lines, reach_id = "reach", stream_pt_spacing = 1)
 head(rdll)
 
-## ----fig.width = 6, fig.height = 4---------------------------------------
+## ----fig.width = 6, fig.height = 4--------------------------------------------
 # figure out which stream is closest
 closest_reach <- rdll[which.min(rdll$dist), "reach"]
 closest_dist  <- rdll[which.min(rdll$dist), "dist"]
@@ -140,7 +139,7 @@ data.frame(date = closest_discharge$date, Qs = Qs) %>%
     geom_line() +
     scale_y_continuous(name = "Qs, Streamflow Depletion [m3/d]")
 
-## ----fig.width = 6, fig.height = 4---------------------------------------
+## ----fig.width = 6, fig.height = 4--------------------------------------------
 # calculate streamflow 
 closest_discharge$Q_pumped <- closest_discharge$Q_m3d - Qs 
 
@@ -152,36 +151,54 @@ closest_discharge %>%
     geom_line() +
     coord_trans(y = scales::log1p_trans())
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 max_dist <- depletion_max_distance(Qf_thres = 0.01, method="glover", d_max = 10000,
                                    t = (t_pump_stop - t_pump_start), S = Sy, Tr = trans)
 max_dist
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 fi <- apportion_inverse(reach_dist = rdll, w = 2, max_dist = max_dist)
 head(fi)
 
-## ----fig.width = 6, fig.height = 4---------------------------------------
+## ----fig.width = 6, fig.height = 6--------------------------------------------
 # merge fi with stream network shapefile
 stream_lines@data <- dplyr::left_join(stream_lines@data, fi, by = "reach")
 
 # any NA values means they are outside the max_dist and should be set to 0
 stream_lines@data$frac_depletion[is.na(stream_lines@data$frac_depletion)] <- 0
 
-# convert stream_lines to an sf object for plotting
-stream_sf <- sf::st_as_sf(stream_lines)
-
-# plot
-ggplot2::ggplot(stream_sf) +
-  geom_sf(aes(color = 
-                cut(frac_depletion, 
+# cut frac_depletion into groups
+stream_lines@data$frac_depletion_intervals <- 
+  cut(stream_lines@data$frac_depletion, 
                     breaks = c(0, 0.05, 0.1, 0.2, 1),
                     labels = c("<5%", "5-10%", "10-20%", ">20%"),
-                    include.lowest = T))) +
-  scale_color_manual(name = "frac_depletion", drop = F,
-                     values = c("blue", "forestgreen", "orange", "red"))
+                    include.lowest = T)
 
-## ------------------------------------------------------------------------
+# make id field which will be used for joining/plotting later
+stream_lines@data$id <- as.character(as.numeric(rownames(stream_lines@data)) - 1)
+
+# convert to data frame
+stream_df <- ggplot2::fortify(stream_lines, region = "id")
+
+# add depletion data
+stream_df <- dplyr::left_join(stream_df, stream_lines@data, by = "id")
+
+# plot
+ggplot2::ggplot(stream_df) +
+  geom_path(aes(x = long, y = lat, group = group, 
+                color = frac_depletion_intervals)) +
+  scale_color_manual(name = "Fraction of Depletion", drop = F,
+                     values = c("blue", "forestgreen", "orange", "red")) +
+  scale_x_continuous(name = "UTM 16N Northing [m]") +
+  scale_y_continuous(name = "UTM 16N Easting [m]") +
+  coord_equal() +
+  theme_bw() +
+  theme(axis.text.y = element_text(angle = 90),
+        panel.grid = element_blank(),
+        legend.position = "bottom")
+  
+
+## -----------------------------------------------------------------------------
 fi <- 
   dplyr::left_join(fi, unique(stream_lines@data[,c("reach", "stream")]), by = "reach")
 
@@ -189,16 +206,16 @@ fi %>%
   dplyr::group_by(stream) %>% 
   dplyr::summarize(sum_depletion = sum(frac_depletion))
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 fi <- 
   rdll %>% 
   subset(reach %in% fi$reach) %>%  # only calculate for reaches with some depletion
-  group_by(reach) %>% 
-  summarize(dist_min = min(dist)) %>% 
-  left_join(fi, ., by="reach")  # join to data frame with apportionment
+  dplyr::group_by(reach) %>% 
+  dplyr::summarize(dist_min = min(dist)) %>% 
+  dplyr::left_join(fi, ., by="reach")  # join to data frame with apportionment
 head(fi)
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 for (r in 1:length(fi$reach)) {
   df_r <- data.frame(stream = fi$stream[r], 
                      reach = fi$reach[r], 
@@ -222,20 +239,20 @@ for (r in 1:length(fi$reach)) {
   }
 }
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 df_all$Qs_apportioned <- df_all$Qs_analytical * df_all$frac_depletion
 
-## ----fig.width = 6, fig.height = 4---------------------------------------
+## ----fig.width = 6, fig.height = 4--------------------------------------------
 ggplot2::ggplot(df_all, aes(x = date, y = Qs_apportioned, group = reach, linetype = stream)) +
     annotate("rect", xmin = date_pump_start, xmax = date_pump_stop, 
              ymin = -Inf, ymax = Inf, fill = "red", alpha = 0.5) +
   geom_line()
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 df_all %>% 
   subset(date == date_pump_stop & Qs_apportioned >= 20)
 
-## ----fig.width = 6, fig.height = 4---------------------------------------
+## ----fig.width = 6, fig.height = 4--------------------------------------------
 df_all %>% 
   # sum depletion for all reaches in each tributary
   dplyr::group_by(stream, date) %>% 
