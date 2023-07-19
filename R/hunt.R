@@ -7,7 +7,7 @@ hunt <- function(t, d, S, Tr, lmda, lmda_max = Inf, prec = 80) {
   #' @param Tr aquifer transmissivity [L2/T]
   #' @param lmda streambed conductance term, lambda [L/T]. Can be estimated with \code{streambed_conductance}.
   #' @param lmda_max maximum allowed `lmda` [L/T]. If `lmda` is too high, exp and erfc calculations in Hunt solution are not computationally possible, so you may need to artifically reduce `lmda` using this term.
-  #' @param prec precision for \code{Rmpfr} package for storing huge numbers; 80 seems to generally work but tweak this if you get weird results. Reducing this value will reduce accuracy but speed up computation time.
+  #' @param prec precision for \code{Rmpfr} package for storing huge numbers; 80 seems to generally work but tweak this if you get weird results. Reducing this value will reduce accuracy but speed up computation time. If set to `NULL`, the `mpfr` function is not used which can address an occasional issue on Mac computers but lead to problems under some combinations of `Tr` and `lmda`.
   #' @details This function is described in Hunt (1999). When \code{lmda} term gets very large, this is equivalent to \link{glover}. It contains numerous assumptions:
   #' \itemize{
   #'   \item Horizontal flow >> vertical flow (Dupuit assumptions hold)
@@ -22,7 +22,6 @@ hunt <- function(t, d, S, Tr, lmda, lmda_max = Inf, prec = 80) {
   #' }
   #' @return A numeric of \code{Qf}, streamflow depletion as fraction of pumping rate [-].
   #' If the pumping rate of the well (\code{Qw}; [L3/T]) is known, you can calculate volumetric streamflow depletion [L3/T] as \code{Qf*Qw}
-  #' @importFrom magrittr %>%
   #' @references
   #' Hunt, B (1999). Unsteady Stream Depletion from Ground Water Pumping.
   #' Ground Water 37 (1): 98-102. doi:10.1111/j.1745-6584.1999.tb00962.x.
@@ -41,9 +40,15 @@ hunt <- function(t, d, S, Tr, lmda, lmda_max = Inf, prec = 80) {
   lmda[lmda > lmda_max] <- lmda_max
 
   # erfc and exp terms can get really huge; use the Rmpfr package to deal with them
-  term1 <- Rmpfr::erfc(Rmpfr::mpfr(sqrt((S * d * d) / (4 * Tr * t)), prec))
-  term2 <- exp(Rmpfr::mpfr(((lmda * lmda * t) / (4 * S * Tr) + (lmda * d) / (2 * Tr)), prec))
-  term3 <- Rmpfr::erfc(Rmpfr::mpfr(sqrt((lmda * lmda * t) / (4 * S * Tr)) + sqrt((S * d * d) / (4 * Tr * t)), prec))
+  if (is.null(prec)) {
+    term1 <- Rmpfr::erfc(sqrt((S * d * d) / (4 * Tr * t)))
+    term2 <- exp(((lmda * lmda * t) / (4 * S * Tr) + (lmda * d) / (2 * Tr)))
+    term3 <- Rmpfr::erfc(sqrt((lmda * lmda * t) / (4 * S * Tr)) + sqrt((S * d * d) / (4 * Tr * t)))
+  } else {
+    term1 <- Rmpfr::erfc(Rmpfr::mpfr(sqrt((S * d * d) / (4 * Tr * t)), prec))
+    term2 <- exp(Rmpfr::mpfr(((lmda * lmda * t) / (4 * S * Tr) + (lmda * d) / (2 * Tr)), prec))
+    term3 <- Rmpfr::erfc(Rmpfr::mpfr(sqrt((lmda * lmda * t) / (4 * S * Tr)) + sqrt((S * d * d) / (4 * Tr * t)), prec))
+  }
 
   # check for issues
   errors <- which(!is.finite(term2))
